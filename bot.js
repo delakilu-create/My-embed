@@ -1,7 +1,6 @@
 const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const express = require('express');
 
-// ───────────── WEB SERVER ─────────────
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -13,19 +12,17 @@ app.listen(PORT, () => {
     console.log(`🌐 Web server running on port ${PORT}`);
 });
 
-// ───────────── DISCORD BOT ─────────────
 const client = new Client({ 
     intents: [GatewayIntentBits.Guilds] 
 });
 
 const TOKEN = process.env.DISCORD_TOKEN;
-const ORDER_CHANNEL_ID = '1495456945279336490';
+const ORDER_CHANNEL_ID = '1509209386482929825';  // YOUR NEW CHANNEL ID
 
 client.once('ready', () => {
     console.log(`✅ ${client.user.tag} is online!`);
 });
 
-// Register slash commands
 client.once('ready', async () => {
     await client.application.commands.set([
         {
@@ -49,51 +46,50 @@ client.once('ready', async () => {
             description: 'Check if the bot is responsive'
         }
     ]);
-    console.log('✅ Commands ready: /embed , /order , /ping');
+    console.log('✅ Commands ready');
 });
 
-// ───────────── HANDLE COMMANDS ─────────────
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    // PING COMMAND
+    // PING
     if (interaction.commandName === 'ping') {
         await interaction.reply({ 
-            content: `🏓 Pong! Bot is online with ${client.ws.ping}ms latency.`, 
+            content: `🏓 Pong! ${client.ws.ping}ms`, 
             ephemeral: true 
         });
     }
 
-    // EMBED COMMAND
+    // EMBED
     if (interaction.commandName === 'embed') {
         const targetChannel = interaction.options.getChannel('channel');
 
         const modal = new ModalBuilder()
             .setCustomId(`embed_${targetChannel.id}`)
-            .setTitle('📝 Create Custom Embed');
+            .setTitle('Create Custom Embed');
 
         const titleInput = new TextInputBuilder()
             .setCustomId('title')
-            .setLabel('📌 Title')
+            .setLabel('Title')
             .setStyle(TextInputStyle.Short)
             .setRequired(false);
 
         const descInput = new TextInputBuilder()
             .setCustomId('description')
-            .setLabel('📝 Description')
+            .setLabel('Description')
             .setStyle(TextInputStyle.Paragraph)
             .setRequired(false);
 
         const colorInput = new TextInputBuilder()
             .setCustomId('color')
-            .setLabel('🎨 Color (hex)')
+            .setLabel('Color (hex)')
             .setStyle(TextInputStyle.Short)
             .setPlaceholder('#2b2d31')
             .setRequired(false);
 
         const footerInput = new TextInputBuilder()
             .setCustomId('footer')
-            .setLabel('📎 Footer')
+            .setLabel('Footer')
             .setStyle(TextInputStyle.Short)
             .setRequired(false);
 
@@ -107,81 +103,55 @@ client.on('interactionCreate', async (interaction) => {
         await interaction.showModal(modal);
     }
 
-    // ORDER COMMAND - DIGITAL HUB
+    // ORDER
     if (interaction.commandName === 'order') {
         
         const modal = new ModalBuilder()
             .setCustomId('order_modal')
-            .setTitle('📋 DIGITAL HUB - Order Form');
+            .setTitle('DIGITAL HUB - Order');
 
         const nameInput = new TextInputBuilder()
-            .setCustomId('fullname')
-            .setLabel('📝 Full Name')
+            .setCustomId('name')
+            .setLabel('Full Name')
             .setStyle(TextInputStyle.Short)
-            .setPlaceholder('John Doe')
             .setRequired(true);
 
-        const discordInput = new TextInputBuilder()
-            .setCustomId('discord')
-            .setLabel('💬 Discord Username')
+        const serviceInput = new TextInputBuilder()
+            .setCustomId('service')
+            .setLabel('What service do you need?')
             .setStyle(TextInputStyle.Short)
-            .setPlaceholder('@username')
-            .setRequired(true);
-
-        const serviceTypeInput = new TextInputBuilder()
-            .setCustomId('service_type')
-            .setLabel('📦 Service Type')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('Branding / Pixel / Dev / Web / Video / Game')
-            .setRequired(true);
-
-        const specificServiceInput = new TextInputBuilder()
-            .setCustomId('specific_service')
-            .setLabel('🎯 Specific Service')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('Premium Branding - $250')
+            .setPlaceholder('Branding, Pixel Art, Development, etc.')
             .setRequired(true);
 
         const detailsInput = new TextInputBuilder()
             .setCustomId('details')
-            .setLabel('📝 Project Details')
+            .setLabel('Project Details')
             .setStyle(TextInputStyle.Paragraph)
             .setPlaceholder('Describe what you need...')
             .setRequired(true);
 
         const budgetInput = new TextInputBuilder()
             .setCustomId('budget')
-            .setLabel('💰 Budget (USD)')
+            .setLabel('Budget (USD)')
             .setStyle(TextInputStyle.Short)
             .setPlaceholder('$250')
             .setRequired(true);
 
-        const deadlineInput = new TextInputBuilder()
-            .setCustomId('deadline')
-            .setLabel('⏰ Deadline')
-            .setStyle(TextInputStyle.Short)
-            .setPlaceholder('2 weeks / No deadline')
-            .setRequired(false);
-
         modal.addComponents(
             new ActionRowBuilder().addComponents(nameInput),
-            new ActionRowBuilder().addComponents(discordInput),
-            new ActionRowBuilder().addComponents(serviceTypeInput),
-            new ActionRowBuilder().addComponents(specificServiceInput),
+            new ActionRowBuilder().addComponents(serviceInput),
             new ActionRowBuilder().addComponents(detailsInput),
-            new ActionRowBuilder().addComponents(budgetInput),
-            new ActionRowBuilder().addComponents(deadlineInput)
+            new ActionRowBuilder().addComponents(budgetInput)
         );
 
         await interaction.showModal(modal);
     }
 });
 
-// ───────────── HANDLE MODAL SUBMISSIONS ─────────────
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isModalSubmit()) return;
 
-    // EMBED MODAL
+    // EMBED SUBMIT
     if (interaction.customId.startsWith('embed_')) {
         const title = interaction.fields.getTextInputValue('title');
         const description = interaction.fields.getTextInputValue('description');
@@ -205,46 +175,37 @@ client.on('interactionCreate', async (interaction) => {
         });
     }
 
-    // ORDER MODAL - DIGITAL HUB
+    // ORDER SUBMIT
     if (interaction.customId === 'order_modal') {
         
-        const fullname = interaction.fields.getTextInputValue('fullname');
-        const discord = interaction.fields.getTextInputValue('discord');
-        const serviceType = interaction.fields.getTextInputValue('service_type');
-        const specificService = interaction.fields.getTextInputValue('specific_service');
+        const name = interaction.fields.getTextInputValue('name');
+        const service = interaction.fields.getTextInputValue('service');
         const details = interaction.fields.getTextInputValue('details');
         const budget = interaction.fields.getTextInputValue('budget');
-        const deadline = interaction.fields.getTextInputValue('deadline') || 'Not specified';
 
-        const orderChannel = await client.channels.fetch(ORDER_CHANNEL_ID);
-        
-        const orderEmbed = new EmbedBuilder()
-            .setTitle('🆕 NEW ORDER - DIGITAL HUB')
-            .setColor('#00a8ff')
-            .addFields(
-                { name: '👤 Customer Name', value: fullname, inline: true },
-                { name: '💬 Discord', value: discord, inline: true },
-                { name: '📦 Service Type', value: serviceType, inline: true },
-                { name: '🎯 Specific Service', value: specificService, inline: true },
-                { name: '💰 Budget', value: budget, inline: true },
-                { name: '⏰ Deadline', value: deadline, inline: true },
-                { name: '📝 Project Details', value: details, inline: false }
-            )
-            .setFooter({ text: `Order from ${interaction.user.tag} | ID: ${interaction.user.id}` })
-            .setTimestamp();
-
-        await orderChannel.send({ embeds: [orderEmbed] });
-        
         try {
-            await interaction.user.send({
-                content: `📋 **Order Confirmation - DIGITAL HUB**\n\nThank you for your order, ${fullname}!\n\n**Order Summary:**\n📦 Service: ${specificService}\n💰 Budget: ${budget}\n⏰ Deadline: ${deadline}\n\nA staff member will contact you at ${discord} within 24 hours.\n\nThank you for choosing DIGITAL HUB! 🚀`
-            });
+            const orderChannel = await client.channels.fetch(ORDER_CHANNEL_ID);
+            
+            const orderEmbed = new EmbedBuilder()
+                .setTitle('🆕 NEW ORDER - DIGITAL HUB')
+                .setColor('#00a8ff')
+                .addFields(
+                    { name: '👤 Customer', value: name, inline: true },
+                    { name: '💰 Budget', value: budget, inline: true },
+                    { name: '📦 Service', value: service, inline: false },
+                    { name: '📝 Details', value: details, inline: false }
+                )
+                .setFooter({ text: `From: ${interaction.user.tag}` })
+                .setTimestamp();
+
+            await orderChannel.send({ embeds: [orderEmbed] });
+            console.log('✅ Order sent to channel');
         } catch (error) {
-            console.log('Could not DM user');
+            console.log('Error sending to channel:', error.message);
         }
         
         await interaction.reply({ 
-            content: `✅ **Order submitted successfully!**\n\nYour order has been received. A DIGITAL HUB staff member will contact you at **${discord}** within 24 hours.\n\n**Order Summary:**\n📦 Service: ${specificService}\n💰 Budget: ${budget}\n⏰ Deadline: ${deadline}\n\nThank you for choosing DIGITAL HUB! 🚀`, 
+            content: `✅ **Order submitted!**\n\nThank you ${name}! A DIGITAL HUB staff member will contact you within 24 hours.\n\n**Summary:**\n📦 Service: ${service}\n💰 Budget: ${budget}\n\nThank you for choosing DIGITAL HUB! 🚀`, 
             ephemeral: true 
         });
     }
