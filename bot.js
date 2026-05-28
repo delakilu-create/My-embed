@@ -19,10 +19,10 @@ const client = new Client({
 const TOKEN = process.env.DISCORD_TOKEN;
 const ORDER_CHANNEL_ID = '1509209386482929825';
 const FEEDBACK_CHANNEL_ID = '1491721251985559573';
-const APPLICATIONS_CHANNEL_ID = 'YOUR_APPLICATIONS_CHANNEL_ID'; // Set this
-const SUGGESTIONS_CHANNEL_ID = 'YOUR_SUGGESTIONS_CHANNEL_ID'; // Set this
-const REPORTS_CHANNEL_ID = 'YOUR_REPORTS_CHANNEL_ID'; // Set this
 const TICKET_CATEGORY_ID = null;
+
+// Store for quotes
+let quotes = [];
 
 client.once('ready', () => {
     console.log(`✅ ${client.user.tag} is online!`);
@@ -31,7 +31,7 @@ client.once('ready', () => {
 // Register all slash commands
 client.once('ready', async () => {
     await client.application.commands.set([
-        // Existing commands
+        // Core commands
         { name: 'embed', description: 'Create and send a custom embed to any channel', options: [{ name: 'channel', description: 'The channel to send the embed to', type: 7, required: true }] },
         { name: 'order', description: 'Place an order with DIGITAL HUB' },
         { name: 'ping', description: 'Check if the bot is responsive' },
@@ -43,8 +43,38 @@ client.once('ready', async () => {
         { name: 'staff', description: 'View the DIGITAL HUB staff team' },
         { name: 'website', description: 'Get the DIGITAL HUB website link' },
         { name: 'status', description: 'Check bot and server status' },
-        // NEW COMMANDS
+        { name: 'help', description: 'Show all available commands' },
+        
+        // UI Generator Command
+        { 
+            name: 'ui', 
+            description: 'Create a professional UI embed with text and references',
+            options: [
+                { name: 'title', description: 'Main title of the UI', type: 3, required: true },
+                { name: 'content', description: 'Main content / description', type: 3, required: true },
+                { name: 'type', description: 'Type of UI to create', type: 3, required: true, choices: [
+                    { name: '📋 Menu', value: 'menu' },
+                    { name: '💰 Pricing', value: 'pricing' },
+                    { name: '📚 Guide', value: 'guide' },
+                    { name: '📎 Reference', value: 'reference' },
+                    { name: '✅ Checklist', value: 'checklist' },
+                    { name: '⚠️ Warning', value: 'warning' },
+                    { name: '🎉 Announcement', value: 'announcement' },
+                    { name: '📊 Stats', value: 'stats' }
+                ] },
+                { name: 'color', description: 'Color (red/green/blue/purple/orange/yellow/pink)', type: 3, required: false },
+                { name: 'reference', description: 'Reference link or source', type: 3, required: false }
+            ]
+        },
+        
+        // Staff only commands
         { name: 'announce', description: '[STAFF] Make an announcement' },
+        { name: 'giveaway', description: '[STAFF] Start a giveaway', options: [{ name: 'prize', description: 'Giveaway prize', type: 3, required: true }, { name: 'duration', description: 'Duration in hours', type: 4, required: true }] },
+        { name: 'close', description: '[STAFF] Close a support ticket' },
+        { name: 'addmember', description: '[STAFF] Add a member to a ticket', options: [{ name: 'user', description: 'User to add', type: 6, required: true }] },
+        { name: 'customui', description: '[STAFF] Create a custom UI with modal form' },
+        
+        // Utility commands
         { name: 'apply', description: 'Apply for staff position' },
         { name: 'suggest', description: 'Submit a suggestion for the server' },
         { name: 'vote', description: 'Get voting links for the server' },
@@ -52,31 +82,119 @@ client.once('ready', async () => {
         { name: 'partner', description: 'Partnership request form' },
         { name: 'report', description: 'Report a user or issue' },
         { name: 'faq', description: 'Frequently asked questions' },
-        { name: 'close', description: '[STAFF] Close a support ticket' },
-        { name: 'addmember', description: '[STAFF] Add a member to a ticket', options: [{ name: 'user', description: 'User to add', type: 6, required: true }] },
-        { name: 'giveaway', description: '[STAFF] Start a giveaway', options: [{ name: 'prize', description: 'Giveaway prize', type: 3, required: true }, { name: 'duration', description: 'Duration in hours', type: 4, required: true }] },
         { name: 'poll', description: 'Create a poll' },
         { name: 'reminder', description: 'Set a reminder', options: [{ name: 'time', description: 'Minutes from now', type: 4, required: true }, { name: 'message', description: 'Reminder message', type: 3, required: true }] },
         { name: 'countdown', description: 'Create a countdown to an event', options: [{ name: 'event', description: 'Event name', type: 3, required: true }, { name: 'days', description: 'Days from now', type: 4, required: true }] },
         { name: 'quote', description: 'Save or view a random quote', options: [{ name: 'quote', description: 'Quote to save (optional)', type: 3, required: false }] },
         { name: 'avatar', description: 'View a user\'s avatar', options: [{ name: 'user', description: 'User to view', type: 6, required: false }] },
         { name: 'serverinfo', description: 'View server information' },
-        { name: 'userinfo', description: 'View user information', options: [{ name: 'user', description: 'User to view', type: 6, required: false }] },
-        { name: 'help', description: 'Show all available commands' }
+        { name: 'userinfo', description: 'View user information', options: [{ name: 'user', description: 'User to view', type: 6, required: false }] }
     ]);
     console.log('✅ All 25+ commands ready!');
 });
 
-// Store for quotes
-let quotes = [];
+// ========== COLOR MAPPING ==========
+const colorMap = {
+    'red': '#ed4245', 'green': '#57f287', 'blue': '#00a8ff',
+    'purple': '#9b59b6', 'orange': '#e67e22', 'yellow': '#f1c40f', 'pink': '#eb459e'
+};
+
+const typeIcons = {
+    'menu': '📋', 'pricing': '💰', 'guide': '📚', 'reference': '📎',
+    'checklist': '✅', 'warning': '⚠️', 'announcement': '🎉', 'stats': '📊'
+};
 
 // ========== HANDLE COMMANDS ==========
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    // ---------- PING ----------
-    if (interaction.commandName === 'ping') {
-        await interaction.reply({ content: `🏓 Pong! ${client.ws.ping}ms`, ephemeral: true });
+    // ---------- UI GENERATOR ----------
+    if (interaction.commandName === 'ui') {
+        const title = interaction.options.getString('title');
+        const content = interaction.options.getString('content');
+        const type = interaction.options.getString('type');
+        const colorInput = interaction.options.getString('color') || 'blue';
+        const reference = interaction.options.getString('reference');
+        
+        const hexColor = colorMap[colorInput.toLowerCase()] || '#00a8ff';
+        const icon = typeIcons[type] || '📋';
+        const typeName = type.charAt(0).toUpperCase() + type.slice(1);
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`${icon} ${title}`)
+            .setDescription(content)
+            .setColor(hexColor)
+            .setTimestamp();
+        
+        if (reference) {
+            embed.addFields({ name: '🔗 Reference / Source', value: reference, inline: false });
+        }
+        
+        const footers = {
+            'pricing': '💰 Prices may vary based on requirements',
+            'warning': '⚠️ Please read carefully',
+            'checklist': '✅ Check off items as you complete them',
+            'guide': '📚 Follow step by step'
+        };
+        embed.setFooter({ text: footers[type] || `DIGITAL HUB - ${typeName}` });
+        
+        await interaction.reply({ embeds: [embed] });
+    }
+
+    // ---------- CUSTOM UI (Staff Only) ----------
+    if (interaction.commandName === 'customui') {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: '❌ Only staff can use this command!', ephemeral: true });
+        }
+        
+        const modal = new ModalBuilder()
+            .setCustomId('customui_modal')
+            .setTitle('🎨 Create Custom UI');
+        
+        const titleInput = new TextInputBuilder()
+            .setCustomId('title')
+            .setLabel('UI Title')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('📋 Service Menu')
+            .setRequired(true);
+        
+        const field1Input = new TextInputBuilder()
+            .setCustomId('field1')
+            .setLabel('Field 1 (Name: Value)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('🎨 Branding: $100+')
+            .setRequired(false);
+        
+        const field2Input = new TextInputBuilder()
+            .setCustomId('field2')
+            .setLabel('Field 2 (Name: Value)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('🖼️ Pixel Art: $15+')
+            .setRequired(false);
+        
+        const field3Input = new TextInputBuilder()
+            .setCustomId('field3')
+            .setLabel('Field 3 (Name: Value)')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('⚙️ Development: $25+')
+            .setRequired(false);
+        
+        const footerInput = new TextInputBuilder()
+            .setCustomId('footer')
+            .setLabel('Footer Text')
+            .setStyle(TextInputStyle.Short)
+            .setPlaceholder('Use /order to purchase')
+            .setRequired(false);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(field1Input),
+            new ActionRowBuilder().addComponents(field2Input),
+            new ActionRowBuilder().addComponents(field3Input),
+            new ActionRowBuilder().addComponents(footerInput)
+        );
+        
+        await interaction.showModal(modal);
     }
 
     // ---------- HELP ----------
@@ -86,15 +204,21 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription('Here are all available commands!')
             .setColor('#00a8ff')
             .addFields(
+                { name: '🎨 UI GENERATOR', value: '`/ui` - Create professional UI embeds\n`/customui` - [STAFF] Custom UI form', inline: false },
                 { name: '🛒 Order & Services', value: '`/order` `/portfolio` `/socials` `/website`', inline: false },
                 { name: '📝 Feedback & Support', value: '`/feedback` `/ticket` `/suggest` `/report`', inline: false },
-                { name: '👑 Staff Commands', value: '`/announce` `/apply` `/close` `/addmember` `/giveaway`', inline: false },
-                { name: 'ℹ️ Information', value: '`/rules` `/staff` `/status` `/ping` `/serverinfo` `/userinfo` `/help`', inline: false },
+                { name: '👑 Staff Commands', value: '`/announce` `/giveaway` `/close` `/addmember`', inline: false },
+                { name: 'ℹ️ Information', value: '`/rules` `/staff` `/status` `/ping` `/serverinfo` `/userinfo`', inline: false },
                 { name: '🎮 Fun & Utility', value: '`/poll` `/quote` `/avatar` `/reminder` `/countdown` `/vote` `/boost` `/faq`', inline: false }
             )
-            .setFooter({ text: 'Need more help? Open a ticket with /ticket' })
+            .setFooter({ text: 'Type /ui to create beautiful interfaces!' })
             .setTimestamp();
         await interaction.reply({ embeds: [embed] });
+    }
+
+    // ---------- PING ----------
+    if (interaction.commandName === 'ping') {
+        await interaction.reply({ content: `🏓 Pong! ${client.ws.ping}ms`, ephemeral: true });
     }
 
     // ---------- SOCIALS ----------
@@ -109,8 +233,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '💬 Discord', value: 'discord.gg/digitalhub', inline: true },
                 { name: '📷 Instagram', value: '@digitalhub', inline: true },
                 { name: '🐦 Twitter', value: '@digitalhub', inline: true },
-                { name: '🎵 TikTok', value: '@digitalhub', inline: true },
-                { name: '📹 YouTube', value: '@digitalhub', inline: true }
+                { name: '🎵 TikTok', value: '@digitalhub', inline: true }
             )
             .setFooter({ text: 'DIGITAL HUB - Your creative partner' })
             .setTimestamp();
@@ -143,8 +266,7 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription('Check out our official website!')
             .setColor('#00a8ff')
             .addFields({ name: '🔗 Link', value: 'https://www.digitalhub.com', inline: false })
-            .setFooter({ text: 'Visit us today!' })
-            .setTimestamp();
+            .setFooter({ text: 'Visit us today!' });
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -158,12 +280,9 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '1️⃣ Be Respectful', value: 'No harassment, hate speech, or toxic behavior', inline: false },
                 { name: '2️⃣ No Spam', value: 'No excessive messages, links, or advertising', inline: false },
                 { name: '3️⃣ No Scams', value: 'No fake services or fraudulent activities', inline: false },
-                { name: '4️⃣ Use Correct Channels', value: 'Keep conversations in the right channels', inline: false },
-                { name: '5️⃣ No NSFW', value: 'This is a safe-for-work server', inline: false },
-                { name: '6️⃣ Respect Staff', value: 'Staff decisions are final', inline: false }
+                { name: '4️⃣ Use Correct Channels', value: 'Keep conversations in the right channels', inline: false }
             )
-            .setFooter({ text: 'Violations may result in warnings or bans' })
-            .setTimestamp();
+            .setFooter({ text: 'Violations may result in warnings or bans' });
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -174,12 +293,11 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription('Meet our amazing team!')
             .setColor('#f1c40f')
             .addFields(
-                { name: '👑 Owner', value: '<@OWNER_ID> - Server Owner', inline: true },
-                { name: '🛡️ Admins', value: 'Admin 1, Admin 2', inline: true },
-                { name: '🔧 Moderators', value: 'Mod 1, Mod 2, Mod 3', inline: true }
+                { name: '👑 Owner', value: '<@OWNER_ID>', inline: true },
+                { name: '🛡️ Admins', value: 'Admin Team', inline: true },
+                { name: '🔧 Moderators', value: 'Mod Team', inline: true }
             )
-            .setFooter({ text: 'Contact staff for any issues!' })
-            .setTimestamp();
+            .setFooter({ text: 'Contact staff for any issues!' });
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -195,8 +313,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '⏰ Bot Uptime', value: `${uptime} minutes`, inline: true },
                 { name: '👥 Server Members', value: `${interaction.guild.memberCount}`, inline: true }
             )
-            .setFooter({ text: 'All systems operational!' })
-            .setTimestamp();
+            .setFooter({ text: 'All systems operational!' });
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -209,8 +326,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '👑 Owner', value: `<@${interaction.guild.ownerId}>`, inline: true },
                 { name: '👥 Members', value: `${interaction.guild.memberCount}`, inline: true },
                 { name: '📅 Created', value: `<t:${Math.floor(interaction.guild.createdTimestamp / 1000)}:R>`, inline: true }
-            )
-            .setTimestamp();
+            );
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -224,8 +340,7 @@ client.on('interactionCreate', async (interaction) => {
                 { name: '🆔 ID', value: user.id, inline: true },
                 { name: '📅 Joined Discord', value: `<t:${Math.floor(user.createdTimestamp / 1000)}:R>`, inline: true }
             )
-            .setThumbnail(user.displayAvatarURL())
-            .setTimestamp();
+            .setThumbnail(user.displayAvatarURL());
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -247,10 +362,8 @@ client.on('interactionCreate', async (interaction) => {
             .setColor('#f1c40f')
             .addFields(
                 { name: '⭐ Top.gg', value: '[Click here to vote](https://top.gg)', inline: true },
-                { name: '⭐ Discord Servers', value: '[Click here to vote](https://discordservers.com)', inline: true },
-                { name: '⭐ Discord Bot List', value: '[Click here to vote](https://discordbotlist.com)', inline: true }
-            )
-            .setFooter({ text: 'Vote daily for rewards!' });
+                { name: '⭐ Discord Servers', value: '[Click here to vote](https://discordservers.com)', inline: true }
+            );
         await interaction.reply({ embeds: [embed] });
     }
 
@@ -276,59 +389,41 @@ client.on('interactionCreate', async (interaction) => {
             .addFields(
                 { name: '❓ How do I place an order?', value: 'Use `/order` and fill out the form', inline: false },
                 { name: '❓ How long does delivery take?', value: 'Usually 2-7 days depending on the project', inline: false },
-                { name: '❓ What payment methods?', value: 'PayPal, Crypto, Discord Nitro, Robux', inline: false },
-                { name: '❓ Can I get a refund?', value: 'Yes, within 24 hours of order if work not started', inline: false }
+                { name: '❓ What payment methods?', value: 'PayPal, Crypto, Discord Nitro, Robux', inline: false }
             );
         await interaction.reply({ embeds: [embed] });
     }
 
-    // ---------- ANNOUNCE (Staff Only) ----------
-    if (interaction.commandName === 'announce') {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
-            return interaction.reply({ content: '❌ Only staff can use this command!', ephemeral: true });
-        }
-        const modal = new ModalBuilder().setCustomId('announce_modal').setTitle('Make an Announcement');
-        const titleInput = new TextInputBuilder().setCustomId('title').setLabel('Announcement Title').setStyle(TextInputStyle.Short).setRequired(true);
-        const messageInput = new TextInputBuilder().setCustomId('message').setLabel('Announcement Message').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(messageInput));
-        await interaction.showModal(modal);
-    }
-
-    // ---------- APPLY ----------
-    if (interaction.commandName === 'apply') {
-        const modal = new ModalBuilder().setCustomId('apply_modal').setTitle('DIGITAL HUB - Staff Application');
-        const nameInput = new TextInputBuilder().setCustomId('name').setLabel('Your Discord Name').setStyle(TextInputStyle.Short).setRequired(true);
-        const ageInput = new TextInputBuilder().setCustomId('age').setLabel('Your Age').setStyle(TextInputStyle.Short).setRequired(true);
-        const experienceInput = new TextInputBuilder().setCustomId('experience').setLabel('Staff Experience').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(nameInput), new ActionRowBuilder().addComponents(ageInput), new ActionRowBuilder().addComponents(experienceInput));
-        await interaction.showModal(modal);
-    }
-
-    // ---------- SUGGEST ----------
-    if (interaction.commandName === 'suggest') {
-        const modal = new ModalBuilder().setCustomId('suggest_modal').setTitle('DIGITAL HUB - Suggestion');
-        const titleInput = new TextInputBuilder().setCustomId('title').setLabel('Suggestion Title').setStyle(TextInputStyle.Short).setRequired(true);
-        const suggestionInput = new TextInputBuilder().setCustomId('suggestion').setLabel('Your Suggestion').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(suggestionInput));
-        await interaction.showModal(modal);
-    }
-
-    // ---------- REPORT ----------
-    if (interaction.commandName === 'report') {
-        const modal = new ModalBuilder().setCustomId('report_modal').setTitle('Report a User');
-        const userInput = new TextInputBuilder().setCustomId('user').setLabel('User being reported').setStyle(TextInputStyle.Short).setRequired(true);
-        const reasonInput = new TextInputBuilder().setCustomId('reason').setLabel('Reason for report').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(userInput), new ActionRowBuilder().addComponents(reasonInput));
-        await interaction.showModal(modal);
-    }
-
     // ---------- POLL ----------
     if (interaction.commandName === 'poll') {
-        const modal = new ModalBuilder().setCustomId('poll_modal').setTitle('Create a Poll');
-        const questionInput = new TextInputBuilder().setCustomId('question').setLabel('Poll Question').setStyle(TextInputStyle.Short).setRequired(true);
-        const option1Input = new TextInputBuilder().setCustomId('option1').setLabel('Option 1').setStyle(TextInputStyle.Short).setRequired(true);
-        const option2Input = new TextInputBuilder().setCustomId('option2').setLabel('Option 2').setStyle(TextInputStyle.Short).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(questionInput), new ActionRowBuilder().addComponents(option1Input), new ActionRowBuilder().addComponents(option2Input));
+        const modal = new ModalBuilder()
+            .setCustomId('poll_modal')
+            .setTitle('Create a Poll');
+        
+        const questionInput = new TextInputBuilder()
+            .setCustomId('question')
+            .setLabel('Poll Question')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const option1Input = new TextInputBuilder()
+            .setCustomId('option1')
+            .setLabel('Option 1')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const option2Input = new TextInputBuilder()
+            .setCustomId('option2')
+            .setLabel('Option 2')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(questionInput),
+            new ActionRowBuilder().addComponents(option1Input),
+            new ActionRowBuilder().addComponents(option2Input)
+        );
+        
         await interaction.showModal(modal);
     }
 
@@ -360,14 +455,40 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.commandName === 'countdown') {
         const event = interaction.options.getString('event');
         const days = interaction.options.getInteger('days');
-        const targetDate = new Date();
-        targetDate.setDate(targetDate.getDate() + days);
         const embed = new EmbedBuilder()
             .setTitle(`⏰ Countdown to ${event}`)
             .setDescription(`${days} days remaining!`)
-            .addFields({ name: '📅 Date', value: targetDate.toLocaleDateString(), inline: true })
             .setColor('#00a8ff');
         await interaction.reply({ embeds: [embed] });
+    }
+
+    // ---------- ANNOUNCE (Staff Only) ----------
+    if (interaction.commandName === 'announce') {
+        if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) {
+            return interaction.reply({ content: '❌ Only staff can use this command!', ephemeral: true });
+        }
+        const modal = new ModalBuilder()
+            .setCustomId('announce_modal')
+            .setTitle('Make an Announcement');
+        
+        const titleInput = new TextInputBuilder()
+            .setCustomId('title')
+            .setLabel('Announcement Title')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const messageInput = new TextInputBuilder()
+            .setCustomId('message')
+            .setLabel('Announcement Message')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(messageInput)
+        );
+        
+        await interaction.showModal(modal);
     }
 
     // ---------- GIVEAWAY (Staff Only) ----------
@@ -380,62 +501,178 @@ client.on('interactionCreate', async (interaction) => {
         const embed = new EmbedBuilder()
             .setTitle('🎉 GIVEAWAY 🎉')
             .setDescription(`**Prize:** ${prize}\n**Duration:** ${duration} hours\n\nReact with 🎉 to enter!`)
-            .setColor('#57f287')
-            .setTimestamp();
+            .setColor('#57f287');
         await interaction.reply({ embeds: [embed] });
+    }
+
+    // ---------- APPLY ----------
+    if (interaction.commandName === 'apply') {
+        const modal = new ModalBuilder()
+            .setCustomId('apply_modal')
+            .setTitle('DIGITAL HUB - Staff Application');
+        
+        const nameInput = new TextInputBuilder()
+            .setCustomId('name')
+            .setLabel('Your Discord Name')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const experienceInput = new TextInputBuilder()
+            .setCustomId('experience')
+            .setLabel('Staff Experience')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(nameInput),
+            new ActionRowBuilder().addComponents(experienceInput)
+        );
+        
+        await interaction.showModal(modal);
+    }
+
+    // ---------- SUGGEST ----------
+    if (interaction.commandName === 'suggest') {
+        const modal = new ModalBuilder()
+            .setCustomId('suggest_modal')
+            .setTitle('DIGITAL HUB - Suggestion');
+        
+        const suggestionInput = new TextInputBuilder()
+            .setCustomId('suggestion')
+            .setLabel('Your Suggestion')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(new ActionRowBuilder().addComponents(suggestionInput));
+        await interaction.showModal(modal);
+    }
+
+    // ---------- REPORT ----------
+    if (interaction.commandName === 'report') {
+        const modal = new ModalBuilder()
+            .setCustomId('report_modal')
+            .setTitle('Report a User');
+        
+        const userInput = new TextInputBuilder()
+            .setCustomId('user')
+            .setLabel('User being reported')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const reasonInput = new TextInputBuilder()
+            .setCustomId('reason')
+            .setLabel('Reason for report')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(userInput),
+            new ActionRowBuilder().addComponents(reasonInput)
+        );
+        
+        await interaction.showModal(modal);
     }
 
     // ---------- PARTNER ----------
     if (interaction.commandName === 'partner') {
-        const modal = new ModalBuilder().setCustomId('partner_modal').setTitle('Partnership Request');
-        const serverInput = new TextInputBuilder().setCustomId('server').setLabel('Your Server Name').setStyle(TextInputStyle.Short).setRequired(true);
-        const membersInput = new TextInputBuilder().setCustomId('members').setLabel('Member Count').setStyle(TextInputStyle.Short).setRequired(true);
-        const whyInput = new TextInputBuilder().setCustomId('why').setLabel('Why partner with us?').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(serverInput), new ActionRowBuilder().addComponents(membersInput), new ActionRowBuilder().addComponents(whyInput));
+        const modal = new ModalBuilder()
+            .setCustomId('partner_modal')
+            .setTitle('Partnership Request');
+        
+        const serverInput = new TextInputBuilder()
+            .setCustomId('server')
+            .setLabel('Your Server Name')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true);
+        
+        const whyInput = new TextInputBuilder()
+            .setCustomId('why')
+            .setLabel('Why partner with us?')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true);
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(serverInput),
+            new ActionRowBuilder().addComponents(whyInput)
+        );
+        
         await interaction.showModal(modal);
     }
 
     // ---------- EMBED ----------
     if (interaction.commandName === 'embed') {
         const targetChannel = interaction.options.getChannel('channel');
-        const modal = new ModalBuilder().setCustomId(`embed_${targetChannel.id}`).setTitle('Create Custom Embed');
+        const modal = new ModalBuilder()
+            .setCustomId(`embed_${targetChannel.id}`)
+            .setTitle('Create Custom Embed');
+        
         const titleInput = new TextInputBuilder().setCustomId('title').setLabel('Title').setStyle(TextInputStyle.Short).setRequired(false);
         const descInput = new TextInputBuilder().setCustomId('description').setLabel('Description').setStyle(TextInputStyle.Paragraph).setRequired(false);
         const colorInput = new TextInputBuilder().setCustomId('color').setLabel('Color (hex)').setStyle(TextInputStyle.Short).setPlaceholder('#2b2d31').setRequired(false);
         const footerInput = new TextInputBuilder().setCustomId('footer').setLabel('Footer').setStyle(TextInputStyle.Short).setRequired(false);
-        modal.addComponents(new ActionRowBuilder().addComponents(titleInput), new ActionRowBuilder().addComponents(descInput), new ActionRowBuilder().addComponents(colorInput), new ActionRowBuilder().addComponents(footerInput));
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(titleInput),
+            new ActionRowBuilder().addComponents(descInput),
+            new ActionRowBuilder().addComponents(colorInput),
+            new ActionRowBuilder().addComponents(footerInput)
+        );
+        
         await interaction.showModal(modal);
     }
 
     // ---------- ORDER ----------
     if (interaction.commandName === 'order') {
-        const modal = new ModalBuilder().setCustomId('order_modal').setTitle('DIGITAL HUB - Order');
+        const modal = new ModalBuilder()
+            .setCustomId('order_modal')
+            .setTitle('DIGITAL HUB - Order');
+        
         const nameInput = new TextInputBuilder().setCustomId('name').setLabel('Full Name').setStyle(TextInputStyle.Short).setRequired(true);
-        const serviceInput = new TextInputBuilder().setCustomId('service').setLabel('What service do you need?').setStyle(TextInputStyle.Short).setRequired(true);
+        const serviceInput = new TextInputBuilder().setCustomId('service').setLabel('Service needed').setStyle(TextInputStyle.Short).setRequired(true);
         const detailsInput = new TextInputBuilder().setCustomId('details').setLabel('Project Details').setStyle(TextInputStyle.Paragraph).setRequired(true);
         const budgetInput = new TextInputBuilder().setCustomId('budget').setLabel('Budget (USD)').setStyle(TextInputStyle.Short).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(nameInput), new ActionRowBuilder().addComponents(serviceInput), new ActionRowBuilder().addComponents(detailsInput), new ActionRowBuilder().addComponents(budgetInput));
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(nameInput),
+            new ActionRowBuilder().addComponents(serviceInput),
+            new ActionRowBuilder().addComponents(detailsInput),
+            new ActionRowBuilder().addComponents(budgetInput)
+        );
+        
         await interaction.showModal(modal);
     }
 
     // ---------- FEEDBACK ----------
     if (interaction.commandName === 'feedback') {
-        const modal = new ModalBuilder().setCustomId('feedback_modal').setTitle('DIGITAL HUB - Feedback');
+        const modal = new ModalBuilder()
+            .setCustomId('feedback_modal')
+            .setTitle('DIGITAL HUB - Feedback');
+        
         const nameInput = new TextInputBuilder().setCustomId('name').setLabel('Your Name').setStyle(TextInputStyle.Short).setRequired(true);
         const ratingInput = new TextInputBuilder().setCustomId('rating').setLabel('Rating (1-5)').setStyle(TextInputStyle.Short).setPlaceholder('5 = Excellent').setRequired(true);
         const feedbackInput = new TextInputBuilder().setCustomId('feedback').setLabel('Your Feedback').setStyle(TextInputStyle.Paragraph).setRequired(true);
-        modal.addComponents(new ActionRowBuilder().addComponents(nameInput), new ActionRowBuilder().addComponents(ratingInput), new ActionRowBuilder().addComponents(feedbackInput));
+        
+        modal.addComponents(
+            new ActionRowBuilder().addComponents(nameInput),
+            new ActionRowBuilder().addComponents(ratingInput),
+            new ActionRowBuilder().addComponents(feedbackInput)
+        );
+        
         await interaction.showModal(modal);
     }
 
     // ---------- TICKET ----------
     if (interaction.commandName === 'ticket') {
-        const embed = new EmbedBuilder().setTitle('🎫 Create a Support Ticket').setDescription('Click the button below to open a private support ticket.').setColor('#23a55a');
-        const row = new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('📩 Create Ticket').setStyle(ButtonStyle.Primary));
+        const embed = new EmbedBuilder()
+            .setTitle('🎫 Create a Support Ticket')
+            .setDescription('Click the button below to open a private support ticket.')
+            .setColor('#23a55a');
+        const row = new ActionRowBuilder()
+            .addComponents(new ButtonBuilder().setCustomId('create_ticket').setLabel('📩 Create Ticket').setStyle(ButtonStyle.Primary));
         await interaction.reply({ embeds: [embed], components: [row], ephemeral: true });
     }
 
-    // ---------- CLOSE TICKET (Staff Only) ----------
+    // ---------- CLOSE TICKET ----------
     if (interaction.commandName === 'close') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
             return interaction.reply({ content: '❌ Only staff can close tickets!', ephemeral: true });
@@ -447,7 +684,7 @@ client.on('interactionCreate', async (interaction) => {
         setTimeout(() => interaction.channel.delete(), 5000);
     }
 
-    // ---------- ADDMEMBER (Staff Only) ----------
+    // ---------- ADDMEMBER ----------
     if (interaction.commandName === 'addmember') {
         if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) {
             return interaction.reply({ content: '❌ Only staff can use this command!', ephemeral: true });
@@ -462,87 +699,31 @@ client.on('interactionCreate', async (interaction) => {
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isModalSubmit()) return;
 
-    // Embed Submit
-    if (interaction.customId.startsWith('embed_')) {
+    // Custom UI Modal
+    if (interaction.customId === 'customui_modal') {
         const title = interaction.fields.getTextInputValue('title');
-        const description = interaction.fields.getTextInputValue('description');
-        const color = interaction.fields.getTextInputValue('color') || '#2b2d31';
+        const field1 = interaction.fields.getTextInputValue('field1');
+        const field2 = interaction.fields.getTextInputValue('field2');
+        const field3 = interaction.fields.getTextInputValue('field3');
         const footer = interaction.fields.getTextInputValue('footer');
-        const channelId = interaction.customId.replace('embed_', '');
-        const targetChannel = await client.channels.fetch(channelId);
-        const embed = new EmbedBuilder().setTitle(title || ' ').setDescription(description || ' ').setColor(color);
-        if (footer) embed.setFooter({ text: footer });
-        await targetChannel.send({ embeds: [embed] });
-        await interaction.reply({ content: `✅ Embed sent to ${targetChannel}!`, ephemeral: true });
-    }
-
-    // Order Submit
-    if (interaction.customId === 'order_modal') {
-        const name = interaction.fields.getTextInputValue('name');
-        const service = interaction.fields.getTextInputValue('service');
-        const details = interaction.fields.getTextInputValue('details');
-        const budget = interaction.fields.getTextInputValue('budget');
-        try {
-            const orderChannel = await client.channels.fetch(ORDER_CHANNEL_ID);
-            const orderEmbed = new EmbedBuilder().setTitle('🆕 NEW ORDER - DIGITAL HUB').setColor('#00a8ff').addFields({ name: '👤 Customer', value: name, inline: true }, { name: '💰 Budget', value: budget, inline: true }, { name: '📦 Service', value: service, inline: false }, { name: '📝 Details', value: details, inline: false }).setFooter({ text: `From: ${interaction.user.tag}` }).setTimestamp();
-            await orderChannel.send({ embeds: [orderEmbed] });
-        } catch (error) { console.log('Error:', error.message); }
-        await interaction.reply({ content: `✅ **Order submitted!**\n\nThank you ${name}! A staff member will contact you within 24 hours.`, ephemeral: true });
-    }
-
-    // Feedback Submit
-    if (interaction.customId === 'feedback_modal') {
-        const name = interaction.fields.getTextInputValue('name');
-        const rating = interaction.fields.getTextInputValue('rating');
-        const feedback = interaction.fields.getTextInputValue('feedback');
-        const stars = '⭐'.repeat(parseInt(rating) || 0);
-        try {
-            const feedbackChannel = await client.channels.fetch(FEEDBACK_CHANNEL_ID);
-            const feedbackEmbed = new EmbedBuilder().setTitle('📝 NEW CLIENT REVIEW').setColor('#f1c40f').addFields({ name: '👤 Client', value: name, inline: true }, { name: '⭐ Rating', value: `${stars} (${rating}/5)`, inline: true }, { name: '💬 Review', value: feedback, inline: false }).setTimestamp();
-            await feedbackChannel.send({ embeds: [feedbackEmbed] });
-        } catch (error) { console.log('Error:', error.message); }
-        await interaction.reply({ content: `✅ Thank you for your review! ${stars}`, ephemeral: true });
-    }
-
-    // Announce Submit
-    if (interaction.customId === 'announce_modal') {
-        const title = interaction.fields.getTextInputValue('title');
-        const message = interaction.fields.getTextInputValue('message');
-        const embed = new EmbedBuilder().setTitle(`📢 ${title}`).setDescription(message).setColor('#57f287').setTimestamp();
-        await interaction.reply({ content: '✅ Announcement sent!', ephemeral: true });
-        await interaction.channel.send({ embeds: [embed] });
-    }
-
-    // Poll Submit
-    if (interaction.customId === 'poll_modal') {
-        const question = interaction.fields.getTextInputValue('question');
-        const option1 = interaction.fields.getTextInputValue('option1');
-        const option2 = interaction.fields.getTextInputValue('option2');
-        const embed = new EmbedBuilder().setTitle('📊 POLL').setDescription(`**${question}**\n\n✅ ${option1}\n❌ ${option2}`).setColor('#00a8ff');
-        const pollMsg = await interaction.reply({ embeds: [embed], fetchReply: true });
-        await pollMsg.react('✅');
-        await pollMsg.react('❌');
-    }
-});
-
-// ========== HANDLE TICKET BUTTON ==========
-client.on('interactionCreate', async (interaction) => {
-    if (!interaction.isButton()) return;
-    if (interaction.customId === 'create_ticket') {
-        const existingChannel = interaction.guild.channels.cache.find(channel => channel.name === `ticket-${interaction.user.id}`);
-        if (existingChannel) return interaction.reply({ content: `❌ You already have an open ticket: ${existingChannel}`, ephemeral: true });
-        try {
-            const ticketChannel = await interaction.guild.channels.create({
-                name: `ticket-${interaction.user.username}`,
-                type: 0,
-                parent: TICKET_CATEGORY_ID,
-                permissionOverwrites: [{ id: interaction.guild.id, deny: ['ViewChannel'] }, { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles'] }, { id: client.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }]
-            });
-            const welcomeEmbed = new EmbedBuilder().setTitle('🎫 Support Ticket').setDescription(`Hello ${interaction.user.username}!\n\nPlease describe your issue and a staff member will assist you.`).setColor('#23a55a');
-            await ticketChannel.send({ embeds: [welcomeEmbed] });
-            await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
-        } catch (error) { await interaction.reply({ content: '❌ Failed to create ticket.', ephemeral: true }); }
-    }
-});
-
-client.login(TOKEN);
+        
+        const embed = new EmbedBuilder()
+            .setTitle(`🎨 ${title}`)
+            .setColor('#00a8ff')
+            .setTimestamp();
+        
+        const fields = [];
+        if (field1) {
+            const parts = field1.split(':');
+            fields.push({ name: parts[0] || 'Item 1', value: parts[1] || field1, inline: false });
+        }
+        if (field2) {
+            const parts = field2.split(':');
+            fields.push({ name: parts[0] || 'Item 2', value: parts[1] || field2, inline: false });
+        }
+        if (field3) {
+            const parts = field3.split(':');
+            fields.push({ name: parts[0] || 'Item 3', value: parts[1] || field3, inline: false });
+        }
+        
+        if (fields.length > 0) embed.addFields(f
