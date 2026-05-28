@@ -726,4 +726,165 @@ client.on('interactionCreate', async (interaction) => {
             fields.push({ name: parts[0] || 'Item 3', value: parts[1] || field3, inline: false });
         }
         
-        if (fields.length > 0) embed.addFields(f
+        if (fields.length > 0) embed.addFields(fields);
+        if (footer) embed.setFooter({ text: footer });
+        
+        await interaction.reply({ embeds: [embed] });
+    }
+
+    // Embed Submit
+    if (interaction.customId.startsWith('embed_')) {
+        const title = interaction.fields.getTextInputValue('title');
+        const description = interaction.fields.getTextInputValue('description');
+        const color = interaction.fields.getTextInputValue('color') || '#2b2d31';
+        const footer = interaction.fields.getTextInputValue('footer');
+        const channelId = interaction.customId.replace('embed_', '');
+        const targetChannel = await client.channels.fetch(channelId);
+        const embed = new EmbedBuilder().setTitle(title || ' ').setDescription(description || ' ').setColor(color);
+        if (footer) embed.setFooter({ text: footer });
+        await targetChannel.send({ embeds: [embed] });
+        await interaction.reply({ content: `✅ Embed sent to ${targetChannel}!`, ephemeral: true });
+    }
+
+    // Order Submit
+    if (interaction.customId === 'order_modal') {
+        const name = interaction.fields.getTextInputValue('name');
+        const service = interaction.fields.getTextInputValue('service');
+        const details = interaction.fields.getTextInputValue('details');
+        const budget = interaction.fields.getTextInputValue('budget');
+        try {
+            const orderChannel = await client.channels.fetch(ORDER_CHANNEL_ID);
+            const orderEmbed = new EmbedBuilder()
+                .setTitle('🆕 NEW ORDER - DIGITAL HUB')
+                .setColor('#00a8ff')
+                .addFields(
+                    { name: '👤 Customer', value: name, inline: true },
+                    { name: '💰 Budget', value: budget, inline: true },
+                    { name: '📦 Service', value: service, inline: false },
+                    { name: '📝 Details', value: details, inline: false }
+                )
+                .setFooter({ text: `From: ${interaction.user.tag}` })
+                .setTimestamp();
+            await orderChannel.send({ embeds: [orderEmbed] });
+        } catch (error) { console.log('Error:', error.message); }
+        await interaction.reply({ content: `✅ **Order submitted!** Thank you ${name}! A staff member will contact you within 24 hours.`, ephemeral: true });
+    }
+
+    // Feedback Submit
+    if (interaction.customId === 'feedback_modal') {
+        const name = interaction.fields.getTextInputValue('name');
+        const rating = interaction.fields.getTextInputValue('rating');
+        const feedback = interaction.fields.getTextInputValue('feedback');
+        const stars = '⭐'.repeat(parseInt(rating) || 0);
+        try {
+            const feedbackChannel = await client.channels.fetch(FEEDBACK_CHANNEL_ID);
+            const feedbackEmbed = new EmbedBuilder()
+                .setTitle('📝 NEW CLIENT REVIEW')
+                .setColor('#f1c40f')
+                .addFields(
+                    { name: '👤 Client', value: name, inline: true },
+                    { name: '⭐ Rating', value: `${stars} (${rating}/5)`, inline: true },
+                    { name: '💬 Review', value: feedback, inline: false }
+                )
+                .setTimestamp();
+            await feedbackChannel.send({ embeds: [feedbackEmbed] });
+        } catch (error) { console.log('Error:', error.message); }
+        await interaction.reply({ content: `✅ Thank you for your review! ${stars}`, ephemeral: true });
+    }
+
+    // Announce Submit
+    if (interaction.customId === 'announce_modal') {
+        const title = interaction.fields.getTextInputValue('title');
+        const message = interaction.fields.getTextInputValue('message');
+        const embed = new EmbedBuilder()
+            .setTitle(`📢 ${title}`)
+            .setDescription(message)
+            .setColor('#57f287')
+            .setFooter({ text: `Announced by ${interaction.user.tag}` })
+            .setTimestamp();
+        await interaction.reply({ content: '✅ Announcement sent!', ephemeral: true });
+        await interaction.channel.send({ embeds: [embed] });
+    }
+
+    // Poll Submit
+    if (interaction.customId === 'poll_modal') {
+        const question = interaction.fields.getTextInputValue('question');
+        const option1 = interaction.fields.getTextInputValue('option1');
+        const option2 = interaction.fields.getTextInputValue('option2');
+        const embed = new EmbedBuilder()
+            .setTitle('📊 POLL')
+            .setDescription(`**${question}**\n\n✅ ${option1}\n❌ ${option2}`)
+            .setColor('#00a8ff');
+        const pollMsg = await interaction.reply({ embeds: [embed], fetchReply: true });
+        await pollMsg.react('✅');
+        await pollMsg.react('❌');
+    }
+
+    // Apply Submit
+    if (interaction.customId === 'apply_modal') {
+        const name = interaction.fields.getTextInputValue('name');
+        const experience = interaction.fields.getTextInputValue('experience');
+        await interaction.reply({ content: `✅ Application submitted! We'll review it and get back to you soon.`, ephemeral: true });
+    }
+
+    // Suggest Submit
+    if (interaction.customId === 'suggest_modal') {
+        const suggestion = interaction.fields.getTextInputValue('suggestion');
+        await interaction.reply({ content: `✅ Suggestion submitted! Thank you for helping improve DIGITAL HUB!`, ephemeral: true });
+    }
+
+    // Report Submit
+    if (interaction.customId === 'report_modal') {
+        const user = interaction.fields.getTextInputValue('user');
+        const reason = interaction.fields.getTextInputValue('reason');
+        await interaction.reply({ content: `✅ Report submitted! Staff will investigate.`, ephemeral: true });
+    }
+
+    // Partner Submit
+    if (interaction.customId === 'partner_modal') {
+        const server = interaction.fields.getTextInputValue('server');
+        const why = interaction.fields.getTextInputValue('why');
+        await interaction.reply({ content: `✅ Partnership request sent! We'll contact you soon.`, ephemeral: true });
+    }
+});
+
+// ========== HANDLE TICKET BUTTON ==========
+client.on('interactionCreate', async (interaction) => {
+    if (!interaction.isButton()) return;
+    
+    if (interaction.customId === 'create_ticket') {
+        const existingChannel = interaction.guild.channels.cache.find(channel => channel.name === `ticket-${interaction.user.id}`);
+        if (existingChannel) {
+            return interaction.reply({ content: `❌ You already have an open ticket: ${existingChannel}`, ephemeral: true });
+        }
+        
+        try {
+            const ticketChannel = await interaction.guild.channels.create({
+                name: `ticket-${interaction.user.username}`,
+                type: 0,
+                parent: TICKET_CATEGORY_ID,
+                permissionOverwrites: [
+                    { id: interaction.guild.id, deny: ['ViewChannel'] },
+                    { id: interaction.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles'] },
+                    { id: client.user.id, allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory'] }
+                ]
+            });
+            
+            const welcomeEmbed = new EmbedBuilder()
+                .setTitle('🎫 Support Ticket')
+                .setDescription(`Hello ${interaction.user.username}!\n\nPlease describe your issue and a staff member will assist you.`)
+                .setColor('#23a55a')
+                .addFields(
+                    { name: '📌 Instructions', value: 'Be as detailed as possible about your request.' },
+                    { name: '⏰ Response Time', value: 'Usually within 24 hours' }
+                );
+            
+            await ticketChannel.send({ embeds: [welcomeEmbed] });
+            await interaction.reply({ content: `✅ Ticket created: ${ticketChannel}`, ephemeral: true });
+        } catch (error) {
+            await interaction.reply({ content: '❌ Failed to create ticket. Please check bot permissions.', ephemeral: true });
+        }
+    }
+});
+
+client.login(TOKEN);
